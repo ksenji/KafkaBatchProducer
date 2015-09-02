@@ -15,20 +15,20 @@ import kafka.samples.KafkaBatchProducer.RecordMetadataAndException;
 public class BatchCallbackHelper {
 
 	private int counter = 0;
-	private final AtomicInteger count;
+	private final AtomicInteger pendingCallbacks;
 	private final kafka.samples.KafkaBatchProducer.Callback cb;
-	private int origSize;
+	private int batchSize;
 
 	private ConcurrentMap<Integer, RecordMetadataAndException> completionMap = new ConcurrentHashMap<>();
 
-	public BatchCallbackHelper(int count, kafka.samples.KafkaBatchProducer.Callback cb) {
-		this.count = new AtomicInteger(count);
+	public BatchCallbackHelper(int batchSize, kafka.samples.KafkaBatchProducer.Callback cb) {
+		this.pendingCallbacks = new AtomicInteger(batchSize);
 		this.cb = cb;
-		this.origSize = count;
+		this.batchSize = batchSize;
 	}
 
 	public Callback newInstance() {
-		if (counter == origSize) {
+		if (counter == batchSize) {
 			throw new RuntimeException("Batch size exceeded");
 		}
 		return new BatchCallback(counter++);
@@ -44,9 +44,9 @@ public class BatchCallbackHelper {
 
 		public void onCompletion(RecordMetadata metadata, Exception exception) {
 			completionMap.putIfAbsent(Integer.valueOf(id), new RecordMetadataAndException(metadata, exception));
-			if (count.decrementAndGet() == 0) {
+			if (pendingCallbacks.decrementAndGet() == 0) {
 				List<RecordMetadataAndException> tuples = new ArrayList<>();
-				for (int i = 0; i < origSize; i++) {
+				for (int i = 0; i < batchSize; i++) {
 					RecordMetadataAndException tuple = completionMap.get(Integer.valueOf(i));
 					tuples.add(tuple);
 				}
